@@ -105,25 +105,34 @@
     // 1. Fetch CSV from Google Sheets
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTFBSVbqOsH4wlVrGefIW0e8zQ1f3Ssie1ql22px8s3U-LJr3VX9SD6CigsClHVac5dVS2SI1mjKq8S/pub?output=csv'; 
 
-    fetch(sheetUrl)
-      .then(response => response.text())
-      .then(csvText => {
-        const select = document.getElementById('playerSelect');
-        const rows = csvText.split('\n').map(row => row.split(','));
+	fetch(sheetUrl)
+	  .then(response => response.text())
+	  .then(csvText => {
+		const select = document.getElementById('playerSelect');
+		// Split by lines and filter out any completely empty lines
+		const rows = csvText.split(/\r?\n/).filter(row => row.trim() !== "");
 
-        if (rows.length > 0) {
-            select.innerHTML = '<option value="" disabled selected>Select a Player...</option>';
-            rows.forEach((columns, index) => {
-                if (index === 0 || !columns[0]) return; 
-                const name = columns[0].trim();
-                const rating = columns[1].trim();
-                const option = document.createElement('option');
-                option.value = `${name}:${rating}`;
-                option.textContent = `${name} (${rating})`;
-                select.appendChild(option);
-            });
-        }
-      })
+		if (rows.length > 0) {
+			select.innerHTML = '<option value="" disabled selected>Select a Player...</option>';
+			
+			rows.forEach((row, index) => {
+				// ONLY skip index 0 if it's a header (e.g., contains the word "Name")
+				// If your sheet has NO header row, change (index === 0) to (false)
+				if (index === 0 && row.toLowerCase().includes("name")) return;
+
+				const columns = row.split(',');
+				if (columns.length < 2) return; // Skip malformed rows
+
+				const name = columns[0].trim();
+				const rating = columns[1].trim();
+				
+				const option = document.createElement('option');
+				option.value = `${name}:${rating}`;
+				option.textContent = `${name} (${rating})`;
+				select.appendChild(option);
+			});
+		}
+	  })
       .catch(err => {
           console.error("CSV Load Error:", err);
           document.getElementById('playerSelect').innerHTML = '<option disabled>Error loading data</option>';
