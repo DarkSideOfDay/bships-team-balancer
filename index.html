@@ -23,6 +23,23 @@
         th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; }
         th { background: #f8f9fa; }
         .winner-selection { background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px; display: none; }
+/* Visual feedback for dragging */
+.team-box.drag-over {
+    background-color: #e8f4fd;
+    border: 2px dashed #007bff;
+}
+.player-item {
+    cursor: grab;
+    padding: 8px;
+    margin: 5px 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.player-item:active { cursor: grabbing; }
     </style>
 </head>
 <body>
@@ -163,18 +180,84 @@
         return { teamA, teamB, avgA: getAvg(teamA).toFixed(1), avgB: getAvg(teamB).toFixed(1) };
     }
 
-    function generateTeams() {
+	function generateTeams() {
         const result = balanceTeams(playerPool);
         if (!result) return alert("Add at least 2 players!");
         currentTeams = result;
-        const render = (list, elementId) => {
-            document.getElementById(elementId).innerHTML = list.map(p => `<li>${p.name} (${p.rating})</li>`).join('');
-        };
-        render(result.teamA, 'listA');
-        render(result.teamB, 'listB');
-        document.getElementById('avgA').innerText = `Avg: ${result.avgA}`;
-        document.getElementById('avgB').innerText = `Avg: ${result.avgB}`;
+        renderTeams();
+        setupDragAndDrop(); // Initialize listeners
         document.getElementById('postMatchActions').style.display = 'block';
+    }
+
+    function renderTeams() {
+        const render = (list, elementId, teamKey) => {
+            const container = document.getElementById(elementId);
+            container.innerHTML = list.map((p, index) => `
+                <li class="player-item" draggable="true" 
+                    data-index="${index}" data-team="${teamKey}">
+                    <span>${p.name} <strong>(${p.rating})</strong></span>
+                    <span style="color: #ccc; font-size: 0.8rem;">⠿</span>
+                </li>
+            `).join('');
+        };
+
+        render(currentTeams.teamA, 'listA', 'teamA');
+        render(currentTeams.teamB, 'listB', 'teamB');
+        
+        const getAvg = (t) => t.length ? (t.reduce((s, p) => s + p.rating, 0) / t.length).toFixed(1) : 0;
+        currentTeams.avgA = getAvg(currentTeams.teamA);
+        currentTeams.avgB = getAvg(currentTeams.teamB);
+
+        document.getElementById('avgA').innerText = `Avg: ${currentTeams.avgA}`;
+        document.getElementById('avgB').innerText = `Avg: ${currentTeams.avgB}`;
+    }
+
+    function setupDragAndDrop() {
+        const boxes = document.querySelectorAll('.team-box');
+        
+        document.addEventListener('dragstart', (e) => {
+            if (e.target.classList.contains('player-item')) {
+                e.dataTransfer.setData('text/plain', JSON.stringify({
+                    index: e.target.dataset.index,
+                    fromTeam: e.target.dataset.team
+                }));
+            }
+        });
+
+        boxes.forEach(box => {
+            box.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                box.classList.add('drag-over');
+            });
+
+            box.addEventListener('dragleave', () => box.classList.remove('drag-over'));
+
+            box.addEventListener('drop', (e) => {
+                e.preventDefault();
+                box.classList.remove('drag-over');
+                
+                const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+                const toTeam = box.classList.contains('team-a') ? 'teamA' : 'teamB';
+                
+                if (data.fromTeam !== toTeam) {
+                    const player = currentTeams[data.fromTeam].splice(data.index, 1)[0];
+                    currentTeams[toTeam].push(player);
+                    renderTeams();
+                }
+            });
+        });
+    }
+
+    // Logic to move player from one array to the other
+    function movePlayer(toTeam, index) {
+        if (toTeam === 'teamB') {
+            const player = currentTeams.teamA.splice(index, 1)[0];
+            currentTeams.teamB.push(player);
+        } else {
+            const player = currentTeams.teamB.splice(index, 1)[0];
+            currentTeams.teamA.push(player);
+        }
+        renderTeams();
     }
 
     function calculateNewRatings() {
